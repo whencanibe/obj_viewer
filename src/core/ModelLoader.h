@@ -59,17 +59,17 @@ private:
     std::vector<glm::vec3> faceNrm_;         // 삼각형당 1개
     std::vector<glm::vec3> vertNrm_;         // 버텍스당 1개(평균)
 
+    // GPU로 넘길 최종 중복 제거된 버텍스 / 인덱스
     std::vector<Vertex> vertices_;
     std::vector<uint32_t> indices_;
 
     std::vector<tinyobj::material_t> materials_;
     std::vector<int> faceMatIds_; // face(삼각형) 단위 material id
 
-    NormalMode mode_ = NormalMode::Vertex;   // 현재 모드
+    NormalMode mode_ = NormalMode::Vertex;
     glm::vec3 center_{};
     float maxExtent_ = 1.0f;
 };
-
 
 
 

@@ -5,14 +5,18 @@
 #include <unordered_map>
 
 bool ModelLoader::load(const std::string &filename, bool triangulate) {
+    // attrib : 전체 vertex/normal/texcoord 배열이 저장됨.
     tinyobj::attrib_t attrib;
+    // shapes : 각각의 mesh(face 그룹) 데이터가 들어 있음.
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
     tinyobj::ObjReaderConfig cfg;
-    cfg.triangulate = triangulate; // quads → tris
+    // quad , polygon 을 삼각형으로 변환할 지 여부
+    cfg.triangulate = triangulate;
     cfg.mtl_search_path = ""; // .mtl 동일 디렉토리
 
+    // Parse
     tinyobj::ObjReader reader;
     if (!reader.ParseFromFile(filename, cfg)) {
         std::cerr << "TinyObjReader: " << reader.Error() << "\n";
@@ -23,13 +27,13 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
 
     attrib = reader.GetAttrib();
     shapes = reader.GetShapes();
-    materials_ = reader.GetMaterials(); // 재질 정보 저장
+    materials_ = reader.GetMaterials();
 
     vertices_.clear();
     indices_.clear();
     faceMatIds_.clear();
 
-    std::unordered_map<Vertex, uint32_t> unique; // Vertex dedup → index
+    std::unordered_map<Vertex, uint32_t> unique; // 동일한 Vertex 중복 저장을 막고 index 기반 렌더링을 위한 맵.
 
     for (const auto &shape: shapes) {
         size_t index_offset = 0;
@@ -37,8 +41,7 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
         for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); ++f) {
             int fv = shape.mesh.num_face_vertices[f]; // == 3
 
-            // ---------- ① face 노멀 먼저 계산 ----------
-            //  (노멀이 이미 들어있으면 나중에 덮어쓰지 않음)
+            // Normal이 없을 경우를 대비해 직접 계산 (노멀이 이미 들어있으면 나중에 덮어쓰지 않음)
             glm::vec3 faceNrm(0.0f); {
                 tinyobj::index_t idx0 = shape.mesh.indices[index_offset + 0];
                 tinyobj::index_t idx1 = shape.mesh.indices[index_offset + 1];
@@ -63,7 +66,7 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
                 faceNrm = glm::normalize(glm::cross(p1 - p0, p2 - p0));
             }
 
-            // ---------- ② 삼각형의 세 버텍스를 처리 ----------
+            // face의 각 vertex 처리
             for (int v = 0; v < fv; ++v) {
                 tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
 
@@ -82,7 +85,7 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
                         attrib.normals[3 * idx.normal_index + 2]
                     };
                 } else {
-                    nrm = faceNrm; // ★ 직접 계산한 노멀
+                    nrm = faceNrm; // 직접 계산한 노멀
                 }
 
                 glm::vec2 tex{};
@@ -93,8 +96,9 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
                     };
                 }
 
+                // Vertex 중복 제거 및 저장
                 Vertex vertex{pos, nrm, tex};
-
+                // 기존 vertex 못찾으면 .end() 값 반환
                 if (auto it = unique.find(vertex); it != unique.end()) {
                     indices_.push_back(it->second);
                 } else {
@@ -109,15 +113,16 @@ bool ModelLoader::load(const std::string &filename, bool triangulate) {
         }
     }
 
-    glm::vec3 bboxMin( 1e9), bboxMax(-1e9);
-    for (auto& v : vertices_) {
+    // AABB Bounding box 계산
+    glm::vec3 bboxMin(1e9), bboxMax(-1e9);
+    for (auto &v: vertices_) {
         bboxMin = glm::min(bboxMin, v.position);
         bboxMax = glm::max(bboxMax, v.position);
     }
-    glm::vec3 center     = (bboxMin + bboxMax) * 0.5f;
 
-    center_    = (bboxMin + bboxMax) * 0.5f;
+    center_ = (bboxMin + bboxMax) * 0.5f;
     glm::vec3 diff = bboxMax - bboxMin;
     maxExtent_ = std::max({diff.x, diff.y, diff.z});
+
     return true;
 }
