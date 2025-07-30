@@ -2,11 +2,9 @@
 #include "GLWidget.h"
 #include <string>
 
-QVector3D eye = {1, 1, 1};
-
 GLWidget::GLWidget(QWidget *parent)
     : QOpenGLWidget(parent) {
-    setFocusPolicy(Qt::StrongFocus);   // 위젯이 키보드 포커스 받을 수 있도록
+    setFocusPolicy(Qt::StrongFocus); // 위젯이 키보드 포커스 받을 수 있도록
     connect(&timer_, &QTimer::timeout, this, QOverload<>::of(&GLWidget::update));
     timer_.start(16); // ~60 FPS
 }
@@ -18,9 +16,10 @@ void GLWidget::initializeGL() {
     glEnable(GL_DEPTH_TEST);
 
     loadShaders(":/shaders/phong.vert", ":/shaders/phong.frag");
-    loadModel("./res/models/teapot.obj"); // 컴파일된 실행파일 기준 - cmake-build-debug directory
+    loadModel("./res/models/teddybear.obj"); // 컴파일된 실행파일 기준 - cmake-build-debug directory
 
-    view_.lookAt(eye, {0, 0, 0}, {0, 1, 0});
+    camDist_ = 5.5f;
+    updateCamera();
 
     setModelMat();
 
@@ -43,7 +42,7 @@ void GLWidget::paintGL() {
     shader_.setUniformValue("uModel", modelMat_);
 
     shader_.setUniformValue("uLightPos", QVector3D(3, 3, 0));
-    shader_.setUniformValue("uViewPos", eye);
+    shader_.setUniformValue("uViewPos", eye_);
 
     glBindVertexArray(vao_);
     glDrawElements(GL_TRIANGLES,
@@ -117,7 +116,7 @@ void GLWidget::uploadVertexBuffer() {
     glBindVertexArray(0);
 
     qDebug() << "verts =" << model_.vertices().size()
-         << "idx   =" << model_.indices().size();
+            << "idx   =" << model_.indices().size();
 }
 
 void GLWidget::toggleNormalMode() {
@@ -129,16 +128,15 @@ void GLWidget::toggleNormalMode() {
     update(); // repaint
 }
 
-void GLWidget::setNormalMode(NormalMode mode)
-{
+void GLWidget::setNormalMode(NormalMode mode) {
     if (model_.normalMode() == mode)
         return;
 
     model_.setNormalMode(mode);
 
-    makeCurrent();                // 컨텍스트 활성
+    makeCurrent(); // 컨텍스트 활성
     uploadVertexBuffer();
-    doneCurrent();                // 컨텍스트 반환
+    doneCurrent(); // 컨텍스트 반환
 
     update();
 }
@@ -149,15 +147,76 @@ void GLWidget::setModelMat() {
     modelMat_.setToIdentity();
     float s = 1.0f / model_.maxExtent();
     modelMat_.scale(s);
-    modelMat_.translate(-QVector3D(model_.center().x,     // 원점 이동
+    modelMat_.translate(-QVector3D(model_.center().x, // 원점 이동
                                    model_.center().y,
                                    model_.center().z));
 }
 
-void GLWidget::keyPressEvent(QKeyEvent* e) {
+void GLWidget::keyPressEvent(QKeyEvent *e) {
     if (e->key() == Qt::Key_N) {
         toggleNormalMode();
     } else {
         QOpenGLWidget::keyPressEvent(e); // 다른 키는 기본 처리
     }
+}
+
+void GLWidget::wheelEvent(QWheelEvent *event) {
+    float numDegrees = event->angleDelta().y() / 8.0f;
+    if (numDegrees == 0) {
+        event->accept();
+        return;
+    }
+
+    /* zoomFactor <1 → 줌인,  >1 → 줌아웃 */
+    float zoomFactor = (numDegrees > 0) ? 0.9f : 1.1f;
+    camDist_ *= zoomFactor;
+    camDist_ = std::clamp(camDist_, 0.8f, 20.0f);
+
+    /* eye = 카메라축 * camDist */
+    //QVector3D dir = (eye_ - target_).normalized(); // 현재 바라보는 방향 유지
+    updateCamera();
+
+    update(); // paintGL() 재호출
+    event->accept();
+}
+
+void GLWidget::mousePressEvent(QMouseEvent *e) {
+    if (e->button() == Qt::LeftButton)
+        lastMousePos_ = e->pos();
+}
+
+void GLWidget::mouseMoveEvent(QMouseEvent *e) {
+    if (!(e->buttons() & Qt::LeftButton)) {
+        QOpenGLWidget::mouseMoveEvent(e);
+        return;
+    }
+
+    QPoint delta = e->pos() - lastMousePos_;
+    lastMousePos_ = e->pos();
+
+    const float sens = 0.5f;          // 감도
+    yaw_   -= delta.x() * sens;
+    pitch_ += delta.y() * sens;
+    pitch_  = std::clamp(pitch_, -89.f, 89.f);
+
+    updateCamera();
+    update();                         // repaint
+}
+
+void GLWidget::updateCamera()
+{
+    /* 1. 회전 쿼터니언 만들기 (World‑up → Local‑right 순) */
+    QQuaternion qYaw   = QQuaternion::fromAxisAndAngle({0,1,0}, yaw_);
+    QQuaternion qPitch = QQuaternion::fromAxisAndAngle({1,0,0}, pitch_);
+    QQuaternion rot    = qYaw * qPitch;           //  순서 중요
+
+    /* 2. 기본 전방 벡터(0,0,1)에 회전 적용 → dir */
+    QVector3D dir = rot.rotatedVector({0,0,1}).normalized();
+
+    /* 3. eye = target + dir * radius */
+    eye_ = target_ + dir * camDist_;
+
+    /* 4. view 행렬 */
+    view_.setToIdentity();
+    view_.lookAt(eye_, target_, {0,1,0});
 }
