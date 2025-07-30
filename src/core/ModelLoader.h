@@ -39,8 +39,9 @@ class ModelLoader {
 public:
     bool load(const std::string &filename, bool triangulate = true);
 
-    NormalMode      normalMode()  const { return mode_; }
-    void            setNormalMode(NormalMode m);   // face ↔ vertex 토글
+    NormalMode normalMode() const { return mode_; }
+
+    void setNormalMode(NormalMode m); // face ↔ vertex 토글
 
     const std::vector<Vertex> &vertices() const { return vertices_; }
     const std::vector<uint32_t> &indices() const { return indices_; }
@@ -54,10 +55,11 @@ public:
 private:
     void rebuildVertices();
 
-    std::vector<glm::vec3> rawPos_;          // 위치만
-    std::vector<uint32_t>  rawIdx_;          // v1,v2,v3, .. (삼각형 인덱스)
-    std::vector<glm::vec3> faceNrm_;         // 삼각형당 1개
-    std::vector<glm::vec3> vertNrm_;         // 버텍스당 1개(평균)
+    // 노말 모드 변경을 위해 원래 정보들을 저장해둠
+    std::vector<glm::vec3> rawPos_;
+    std::vector<uint32_t> rawIdx_; // v1,v2,v3, .. (삼각형 인덱스)
+    std::vector<glm::vec3> faceNrm_;
+    std::vector<glm::vec3> vertNrm_;
 
     // GPU로 넘길 최종 중복 제거된 버텍스 / 인덱스
     std::vector<Vertex> vertices_;
@@ -70,7 +72,6 @@ private:
     glm::vec3 center_{};
     float maxExtent_ = 1.0f;
 };
-
 
 
 #endif //MODELLOADER_H
