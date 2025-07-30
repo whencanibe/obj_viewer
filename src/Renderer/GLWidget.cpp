@@ -129,6 +129,21 @@ void GLWidget::toggleNormalMode() {
     update(); // repaint
 }
 
+void GLWidget::setNormalMode(NormalMode mode)
+{
+    if (model_.normalMode() == mode)
+        return;
+
+    model_.setNormalMode(mode);
+
+    makeCurrent();                // 컨텍스트 활성
+    uploadVertexBuffer();
+    doneCurrent();                // 컨텍스트 반환
+
+    update();
+}
+
+
 void GLWidget::setModelMat() {
     // ── 여기서 매트릭스 갱신 ──
     modelMat_.setToIdentity();

@@ -19,6 +19,7 @@ public:
 
 public slots:
     void toggleNormalMode();
+    void setNormalMode(NormalMode mode);
 
 
 protected:
