@@ -1,5 +1,4 @@
 #include "GLWidget.h"
-#include "GLWidget.h"
 #include <string>
 
 GLWidget::GLWidget(QWidget *parent)
@@ -15,16 +14,18 @@ void GLWidget::initializeGL() {
 
     glEnable(GL_DEPTH_TEST);
 
-    loadShaders(":/shaders/phong.vert", ":/shaders/phong.frag");
+    loadShaders(phongProg_, ":/shaders/phong.vert", ":/shaders/phong.frag");
+    loadShaders(gridProg_, ":/shaders/grid.vert", ":/shaders/grid.frag");
+
     loadModel("./res/models/teddybear.obj"); // 컴파일된 실행파일 기준 - cmake-build-debug directory
+    loadGridCube();
 
-    camDist_ = 5.5f;
+    camDist_ = 3.5f;
     updateCamera();
-
+    updateLight();
     setModelMat();
 
-    glClearColor(0.0f, 0.5f, 0.1f, 1.0f);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glClearColor(107 / 255.f, 142 / 255.f, 35 / 255.f, 1.0f);
 }
 
 void GLWidget::resizeGL(int w, int h) {
@@ -36,46 +37,34 @@ void GLWidget::resizeGL(int w, int h) {
 void GLWidget::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    shader_.bind();
-    shader_.setUniformValue("uProj", proj_);
-    shader_.setUniformValue("uView", view_);
-    shader_.setUniformValue("uModel", modelMat_);
+    drawGrid();
+    drawModel();
 
-    shader_.setUniformValue("uLightPos", QVector3D(3, 3, 0));
-    shader_.setUniformValue("uViewPos", eye_);
-
-    glBindVertexArray(vao_);
-    glDrawElements(GL_TRIANGLES,
-                   static_cast<GLsizei>(model_.indices().size()),
-                   GL_UNSIGNED_INT,
-                   nullptr);
-    glBindVertexArray(0);
-    shader_.release();
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR)
         qDebug() << "GL ERROR =" << err;
 }
 
-void GLWidget::loadShaders(const QString &vert, const QString &frag) {
-    shader_.addShaderFromSourceFile(QOpenGLShader::Vertex, vert);
-    shader_.addShaderFromSourceFile(QOpenGLShader::Fragment, frag);
-    shader_.link();
+void GLWidget::loadShaders(QOpenGLShaderProgram &program, const QString &vert, const QString &frag) {
+    program.addShaderFromSourceFile(QOpenGLShader::Vertex, vert);
+    program.addShaderFromSourceFile(QOpenGLShader::Fragment, frag);
+    program.link();
 }
 
 bool GLWidget::loadModel(const QString &path) {
     if (!model_.load(path.toStdString()))
-        return false; // ① OBJ, 노멀, AABB 등 계산
+        return false;
 
-    if (!vao_) {
+    if (!vaoModel_) {
         // ② VAO·VBO·EBO 한 번만 만들기
-        glGenVertexArrays(1, &vao_);
-        glGenBuffers(1, &vbo_);
-        glGenBuffers(1, &ebo_);
+        glGenVertexArrays(1, &vaoModel_);
+        glGenBuffers(1, &vboModel_);
+        glGenBuffers(1, &eboModel_);
 
-        glBindVertexArray(vao_);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+        glBindVertexArray(vaoModel_);
+        glBindBuffer(GL_ARRAY_BUFFER, vboModel_);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboModel_);
 
         // attribute 포인터 고정 (위치·노멀·UV)
         glEnableVertexAttribArray(0);
@@ -88,7 +77,7 @@ bool GLWidget::loadModel(const QString &path) {
         glBindVertexArray(0);
     }
 
-    uploadVertexBuffer(); // ③ 데이터(GPU) 전송은 별도 함수
+    uploadVertexBuffer();
 
     setModelMat();
 
@@ -99,15 +88,15 @@ void GLWidget::uploadVertexBuffer() {
     const auto &verts = model_.vertices();
     const auto &idx = model_.indices();
 
-    glBindVertexArray(vao_);
+    glBindVertexArray(vaoModel_);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    glBindBuffer(GL_ARRAY_BUFFER, vboModel_);
     glBufferData(GL_ARRAY_BUFFER,
                  verts.size() * sizeof(Vertex),
                  verts.data(),
                  GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboModel_);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  idx.size() * sizeof(uint32_t),
                  idx.data(),
@@ -141,9 +130,7 @@ void GLWidget::setNormalMode(NormalMode mode) {
     update();
 }
 
-
 void GLWidget::setModelMat() {
-    // ── 여기서 매트릭스 갱신 ──
     modelMat_.setToIdentity();
     float s = 1.0f / model_.maxExtent();
     modelMat_.scale(s);
@@ -167,13 +154,10 @@ void GLWidget::wheelEvent(QWheelEvent *event) {
         return;
     }
 
-    /* zoomFactor <1 → 줌인,  >1 → 줌아웃 */
     float zoomFactor = (numDegrees > 0) ? 0.9f : 1.1f;
     camDist_ *= zoomFactor;
     camDist_ = std::clamp(camDist_, 0.8f, 20.0f);
 
-    /* eye = 카메라축 * camDist */
-    //QVector3D dir = (eye_ - target_).normalized(); // 현재 바라보는 방향 유지
     updateCamera();
 
     update(); // paintGL() 재호출
@@ -194,29 +178,160 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e) {
     QPoint delta = e->pos() - lastMousePos_;
     lastMousePos_ = e->pos();
 
-    const float sens = 0.5f;          // 감도
-    yaw_   -= delta.x() * sens;
+    const float sens = 0.5f; // 감도
+    yaw_ -= delta.x() * sens;
     pitch_ += delta.y() * sens;
-    pitch_  = std::clamp(pitch_, -89.f, 89.f);
+    pitch_ = std::clamp(pitch_, -89.f, 89.f);
 
     updateCamera();
-    update();                         // repaint
+    update(); // repaint
 }
 
-void GLWidget::updateCamera()
-{
-    /* 1. 회전 쿼터니언 만들기 (World‑up → Local‑right 순) */
-    QQuaternion qYaw   = QQuaternion::fromAxisAndAngle({0,1,0}, yaw_);
-    QQuaternion qPitch = QQuaternion::fromAxisAndAngle({1,0,0}, pitch_);
-    QQuaternion rot    = qYaw * qPitch;           //  순서 중요
+void GLWidget::updateCamera() {
+    QQuaternion qYaw = QQuaternion::fromAxisAndAngle({0, 1, 0}, yaw_);
+    QQuaternion qPitch = QQuaternion::fromAxisAndAngle({1, 0, 0}, pitch_);
+    QQuaternion rot = qYaw * qPitch; //  순서 중요
 
-    /* 2. 기본 전방 벡터(0,0,1)에 회전 적용 → dir */
-    QVector3D dir = rot.rotatedVector({0,0,1}).normalized();
+    QVector3D dir = rot.rotatedVector({0, 0, 1}).normalized();
 
-    /* 3. eye = target + dir * radius */
     eye_ = target_ + dir * camDist_;
 
-    /* 4. view 행렬 */
     view_.setToIdentity();
-    view_.lookAt(eye_, target_, {0,1,0});
+    view_.lookAt(eye_, target_, {0, 1, 0});
+}
+
+// 버튼 토글 위하여
+void GLWidget::setShowGrid(bool on) {
+    showGrid_ = on;
+    update();
+}
+
+void GLWidget::loadGridCube() {
+    cube_.load("./res/models/cube.obj");
+
+    glGenVertexArrays(1, &vaoGrid_);
+    glGenBuffers(1, &vboGrid_);
+    glGenBuffers(1, &eboGrid_);
+
+    glBindVertexArray(vaoGrid_);
+    glBindBuffer(GL_ARRAY_BUFFER, vboGrid_);
+    glBufferData(GL_ARRAY_BUFFER,
+                 cube_.vertices().size() * sizeof(Vertex),
+                 cube_.vertices().data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboGrid_);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 cube_.indices().size() * sizeof(uint32_t),
+                 cube_.indices().data(), GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0); // 위치만 있으면 OK
+    glVertexAttribPointer(0, 3,GL_FLOAT,GL_FALSE, sizeof(Vertex),
+                          (void *) offsetof(Vertex, position));
+    glBindVertexArray(0);
+}
+
+void GLWidget::drawModel() {
+    phongProg_.bind();
+    phongProg_.setUniformValue("uProj", proj_);
+    phongProg_.setUniformValue("uView", view_);
+    phongProg_.setUniformValue("uModel", modelMat_);
+    phongProg_.setUniformValue("uViewPos", eye_);
+
+    phongProg_.setUniformValue("uLightPos", lightPos_);
+    phongProg_.setUniformValue("uKd", kd_);
+    phongProg_.setUniformValue("uKs", ks_);
+    phongProg_.setUniformValue("uShin", shininess_);
+
+    glBindVertexArray(vaoModel_);
+    glDrawElements(GL_TRIANGLES,
+                   model_.indices().size(),
+                   GL_UNSIGNED_INT, nullptr);
+    glBindVertexArray(0);
+    phongProg_.release();
+}
+
+void GLWidget::drawGrid() {
+    if (!showGrid_) return;
+
+    gridProg_.bind();
+    gridProg_.setUniformValue("uColor", QVector4D(1, 1, 1, 1));
+
+    QMatrix4x4 PV = proj_ * view_;
+    const int n = 5000;
+    const float size = model_.maxExtent();
+    const float len = size * 1000;
+    const float step = len / n;
+    const float thickness = 0.003f;
+
+
+    glBindVertexArray(vaoGrid_);
+    for (int j = 0; j <= n; ++j) {
+        float z = -len / 2 + step * j;
+        QMatrix4x4 M;
+
+        //M.translate(QVector3D(-gridCube_.center().x, -gridCube_.center().y, -gridCube_.center().z));
+        //M.translate(0, -0.05f * size, z);
+
+        M.translate(-len / 2.f, -0.05f * size, z);
+        M.scale(len, thickness * size, thickness * size);
+
+        gridProg_.setUniformValue("uMVP", PV * M);
+        glDrawElements(GL_TRIANGLES, cube_.indices().size(),
+                       GL_UNSIGNED_INT, nullptr);
+    }
+    for (int j = 0; j <= n; ++j) {
+        float x = -len / 2 + j * step;
+        QMatrix4x4 M;
+
+        M.translate(x, -0.05f * size, -len / 2.f);
+        M.scale(thickness * size, thickness * size, len);
+        gridProg_.setUniformValue("uMVP", PV * M);
+        glDrawElements(GL_TRIANGLES, cube_.indices().size(),
+                       GL_UNSIGNED_INT, nullptr);
+    }
+    glBindVertexArray(0);
+    gridProg_.release();
+}
+
+void GLWidget::setLightYaw(int deg) {
+    lightYaw_ = deg;
+    updateLight();
+}
+
+void GLWidget::setLightPitch(int deg) {
+    lightPitch_ = deg;
+    updateLight();
+}
+
+void GLWidget::setLightRadius(double r) {
+    lightRadius_ = r;
+    updateLight();
+}
+
+void GLWidget::updateLight() {
+    float ry = qDegreesToRadians(lightYaw_);
+    float rp = qDegreesToRadians(lightPitch_);
+
+    QVector3D dir(cos(rp) * cos(ry),
+                  sin(rp),
+                  cos(rp) * sin(ry));
+
+    lightPos_ = target_ + dir.normalized() * lightRadius_;
+    update();
+}
+
+
+void GLWidget::setKd(int v) {
+    kd_ = v / 100.0f;
+    update();
+}
+
+void GLWidget::setKs(int v) {
+    ks_ = v / 100.0f;
+    update();
+}
+
+void GLWidget::setShininess(int v) {
+    shininess_ = float(v);
+    update();
 }

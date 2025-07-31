@@ -183,4 +183,4 @@ CMakeUserPresets.json
 .history
 .ionide
 
-src/res/models/*.obj
+!src/res/models/*.obj
