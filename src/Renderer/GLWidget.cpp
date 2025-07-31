@@ -1,4 +1,5 @@
 #include "GLWidget.h"
+#include <QFileInfo>
 #include <string>
 
 GLWidget::GLWidget(QWidget *parent)
@@ -17,7 +18,8 @@ void GLWidget::initializeGL() {
     loadShaders(phongProg_, ":/shaders/phong.vert", ":/shaders/phong.frag");
     loadShaders(gridProg_, ":/shaders/grid.vert", ":/shaders/grid.frag");
 
-    loadModel("./res/models/teddybear.obj"); // 컴파일된 실행파일 기준 - cmake-build-debug directory
+    QFileInfo fi(base + "/res/models/teddybear.obj");
+    loadModel(fi.absoluteFilePath());
     loadCube();
 
     camDist_ = 3.5f;
@@ -207,7 +209,8 @@ void GLWidget::setShowGrid(bool on) {
 }
 
 void GLWidget::loadCube() {
-    cube_.load("./res/models/cube.obj");
+    QFileInfo fi(base + "/res/models/cube.obj");
+    cube_.load(fi.absoluteFilePath().toStdString());
 
     glGenVertexArrays(1, &vaoGrid_);
     glGenBuffers(1, &vboGrid_);

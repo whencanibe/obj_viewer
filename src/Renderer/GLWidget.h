@@ -69,6 +69,7 @@ private:
     void updateLight();
 
     QTimer timer_;
+    QString base = QCoreApplication::applicationDirPath(); // 항상 실행파일이 있는 폴더를 반환
 
     //Shader
     QOpenGLShaderProgram phongProg_;
