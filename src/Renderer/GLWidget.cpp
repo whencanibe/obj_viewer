@@ -18,7 +18,7 @@ void GLWidget::initializeGL() {
     loadShaders(gridProg_, ":/shaders/grid.vert", ":/shaders/grid.frag");
 
     loadModel("./res/models/teddybear.obj"); // 컴파일된 실행파일 기준 - cmake-build-debug directory
-    loadGridCube();
+    loadCube();
 
     camDist_ = 3.5f;
     updateCamera();
@@ -39,7 +39,7 @@ void GLWidget::paintGL() {
 
     drawGrid();
     drawModel();
-
+    drawLight();
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR)
@@ -206,7 +206,7 @@ void GLWidget::setShowGrid(bool on) {
     update();
 }
 
-void GLWidget::loadGridCube() {
+void GLWidget::loadCube() {
     cube_.load("./res/models/cube.obj");
 
     glGenVertexArrays(1, &vaoGrid_);
@@ -258,7 +258,7 @@ void GLWidget::drawGrid() {
 
     QMatrix4x4 PV = proj_ * view_;
     const int n = 5000;
-    const float size = model_.maxExtent();
+    const float size = model_.maxExtent(); // 모델 크기가 다 다르기 때문에
     const float len = size * 1000;
     const float step = len / n;
     const float thickness = 0.003f;
@@ -289,6 +289,30 @@ void GLWidget::drawGrid() {
         glDrawElements(GL_TRIANGLES, cube_.indices().size(),
                        GL_UNSIGNED_INT, nullptr);
     }
+    glBindVertexArray(0);
+    gridProg_.release();
+}
+
+void GLWidget::drawLight() {
+    // 모델 크기에 맞춰서 빛 크기 조절
+    float s = model_.maxExtent() * 0.005f;
+
+    QMatrix4x4 M;
+
+    M.translate(lightPos_);
+    M.scale(s);
+    M.translate(-QVector3D(cube_.center().x,
+                           cube_.center().y,
+                           cube_.center().z));
+
+    gridProg_.bind();
+    gridProg_.setUniformValue("uColor", QVector4D(1,1,1,1));
+    gridProg_.setUniformValue("uMVP", proj_ * view_ * M);
+
+    glBindVertexArray(vaoGrid_);
+    glDrawElements(GL_TRIANGLES,
+                   cube_.indices().size(),
+                   GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);
     gridProg_.release();
 }

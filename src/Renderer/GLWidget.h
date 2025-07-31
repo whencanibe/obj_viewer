@@ -28,9 +28,9 @@ public slots:
     void setLightYaw(int deg);       // 0-360
     void setLightPitch(int deg);     // -89~89
     void setLightRadius(double r);   // 거리
-    void setKd(int v);               // 0-100 → 0-1
+    void setKd(int v);               // 0-100 -> 0-1
     void setKs(int v);
-    void setShininess(int v);        // 예: 1-128
+    void setShininess(int v);
 
 protected:
     void initializeGL() override;
@@ -50,7 +50,7 @@ protected:
 private:
     bool loadModel(const QString &path);
 
-    void loadGridCube();
+    void loadCube();
 
     void loadShaders(QOpenGLShaderProgram& program ,const QString &vert, const QString &frag);
 
@@ -63,6 +63,8 @@ private:
     void drawGrid();
 
     void drawModel();
+
+    void drawLight();
 
     void updateLight();
 
