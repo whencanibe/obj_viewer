@@ -58,10 +58,11 @@ MainWindow::MainWindow(QWidget *parent)
     auto *pitchSlider = new QSlider(Qt::Horizontal);
     pitchSlider->setRange(-89, 89);
     pitchSlider->setValue(30);
+
     auto *distSpin = new QDoubleSpinBox;
     distSpin->setRange(0.5, 20);
     distSpin->setSingleStep(0.1);
-    distSpin->setValue(3.0);
+    distSpin->setValue(2.0);
 
     lightingLayout->addWidget(new QLabel("Yaw"));
     lightingLayout->addWidget(yawSlider);

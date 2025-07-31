@@ -97,7 +97,7 @@ private:
     //Lighting parameters
     float lightYaw_    = 45.0f;   // 도(deg)  0 = +X,  90 = +Z
     float lightPitch_  = 30.0f;   // -89 ~ +89 (위/아래)
-    float lightRadius_ = 3.0f;    // 타깃까지 거리
+    float lightRadius_ = 2.0f;    // 타깃까지 거리
     QVector3D lightPos_;
 
     float     kd_ = 1.0f;             // Diffuse  (0-1)
