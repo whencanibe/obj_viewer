@@ -1,7 +1,7 @@
 # obj_viewer
 
-![face](./img/obj_viewer1.png)
-![vertex](./img/obj_viewer2.png)
+<img src="img/obj_viewer1.png" alt="face" width="500"/>
+<img src="img/obj_viewer2.png" alt="vertex" width="500"/>
 
 ## Overview
 obj_viewer is a lightweight **Qt 6** desktop application for quick inspection of 3D assets.
