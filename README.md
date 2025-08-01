@@ -1,5 +1,8 @@
 # obj_viewer
 
+![face](./img/obj_viewer1.png)
+![vertex](./img/obj_viewer2.png)
+
 ## Overview
 obj_viewer is a lightweight **Qt 6** desktop application for quick inspection of 3D assets.
 
@@ -13,11 +16,11 @@ obj_viewer is a lightweight **Qt 6** desktop application for quick inspection of
 
 ## Build & Run
 
+macOS
 ```bash
-git clone https://github.com/whencanibe/obj_viewer.git
+git clone --recursive https://github.com/whencanibe/obj_viewer.git
 cd obj_viewer
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-build/obj_viewer         # macOS / Linux
-build\obj_viewer.exe     # Windows
+build/obj_viewer         
 ```
