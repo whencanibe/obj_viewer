@@ -1,9 +1,6 @@
 # obj_viewer
 
-👉 [Watch Demo Video](https://www.youtube.com/watch?v=-PvcHNFEDeo)
-
-(Or click the image below to watch the video.)
-[![Demo](https://img.youtube.com/vi/-PvcHNFEDeo/0.jpg)](https://www.youtube.com/watch?v=-PvcHNFEDeo)
+👉 [Watch Demo Video(시연 영상 보러 가기)](https://www.youtube.com/watch?v=-PvcHNFEDeo)
 <img src="img/obj_viewer1.png" alt="face" width="500"/>
 <img src="img/obj_viewer2.png" alt="vertex" width="500"/>
 
